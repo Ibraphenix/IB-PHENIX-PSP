@@ -1,0 +1,50 @@
+name: Build IB PHENIX PSP
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Télécharger le projet
+        uses: actions/checkout@v4
+
+      - name: Installer unzip
+        run: sudo apt-get update && sudo apt-get install -y unzip
+
+      - name: Extraire le prototype
+        run: |
+          mkdir -p project
+          unzip -o IB_Phenix_PSP_Native_Prototype.zip -d project
+          find project -maxdepth 4 -type f | sort
+
+      - name: Compiler avec PSPDEV
+        run: |
+          docker pull pspdev/pspdev:latest
+
+          docker run --rm \
+            -v "$PWD/project:/project" \
+            pspdev/pspdev:latest \
+            sh -c '
+              set -e
+              cd /project
+              PROJECT=$(find . -name CMakeLists.txt -print -quit | xargs dirname)
+              cd "$PROJECT"
+              mkdir -p build
+              cd build
+              psp-cmake ..
+              make -j2
+            '
+
+      - name: Chercher EBOOT.PBP
+        run: |
+          find project -type f -name EBOOT.PBP -print
+
+      - name: Publier EBOOT.PBP
+        uses: actions/upload-artifact@v4
+        with:
+          name: IB-PHENIX-EBOOT
+          path: project/**/EBOOT.PBP
